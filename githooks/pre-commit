@@ -1,0 +1,14 @@
+#!/bin/sh
+# Prüft die gestageten Änderungen mit gitleaks, bevor der Commit entsteht.
+#
+# Das Dokumentations-Repository ruft diesen Hook aus seinem eigenen .githooks/pre-commit auf.
+# Einrichtung pro Clone: tooling/docs/einrichtung.md
+# Umgehen im Notfall: git commit --no-verify
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks fehlt im PATH. Einrichtung: tooling/docs/einrichtung.md" >&2
+  exit 1
+fi
+
+exec gitleaks git --pre-commit --staged --redact --no-banner -v \
+  --config "$(dirname "$0")/../.gitleaks.toml" .

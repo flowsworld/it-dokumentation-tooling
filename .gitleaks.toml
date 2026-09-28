@@ -1,0 +1,14 @@
+title = "IT-Dokumentation"
+
+[extend]
+# Standardregeln von gitleaks bleiben aktiv.
+useDefault = true
+
+# Cloudflare-Konto-IDs und Zonen-IDs sind 32 Hex-Zeichen und keine Geheimnisse.
+# Sie treffen nur generic-api-key, wenn ein Wort wie key/token auf der Zeile steht.
+# Cloudflare-API-Token (40 Zeichen) und Global API Keys (37 Hex) bleiben erkannt.
+[[allowlists]]
+description = "Cloudflare Account-ID oder Zone-ID (32 Hex, kein Secret)"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+regexes = ['''^[a-f0-9]{32}$''']

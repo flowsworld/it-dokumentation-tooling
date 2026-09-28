@@ -1,0 +1,28 @@
+name: check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: make test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # yq (mikefarah) und shellcheck sind auf ubuntu-latest vorinstalliert.
+      - run: shellcheck check.sh gitleaks.sh githooks/pre-commit tests/check-stilllegung.sh
+      - run: make test
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - run: bash gitleaks.sh
