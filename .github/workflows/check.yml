@@ -1,7 +1,9 @@
 name: check
 
+# Push nur auf main: Branches mit PR deckt pull_request ab, sonst liefe jeder Commit doppelt.
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -9,20 +11,19 @@ permissions:
   contents: read
 
 jobs:
+  # Ein Job statt zwei: Jeder Job wird mit mindestens einer Minute abgerechnet.
   test:
-    name: make test
+    name: make test und gitleaks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      # yq (mikefarah) und shellcheck sind auf ubuntu-latest vorinstalliert.
-      - run: shellcheck check.sh gitleaks.sh githooks/pre-commit tests/check-stilllegung.sh
-      - run: make test
-
-  gitleaks:
-    name: gitleaks
-    runs-on: ubuntu-latest
-    steps:
+      # gitleaks braucht die vollständige Historie.
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - run: bash gitleaks.sh
+      # yq (mikefarah) und shellcheck sind auf ubuntu-latest vorinstalliert.
+      - run: shellcheck check.sh gitleaks.sh githooks/pre-commit tests/check-stilllegung.sh
+      - run: make test
+      # Läuft auch nach einem Fehler oben, damit beide Ergebnisse sichtbar bleiben.
+      - name: gitleaks
+        if: ${{ !cancelled() }}
+        run: bash gitleaks.sh
