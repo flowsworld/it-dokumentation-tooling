@@ -175,4 +175,8 @@ absent stderr 'WARNUNG '
 contains README.md 'Testdokumentation für ASKÖ.'
 
 echo 'Stilllegung: Alterswarnungen, Index und unveränderte Pflichtprüfungen erfolgreich geprüft.'
-echo "Sortierung geprüft mit Locale ${locale_utf8:-C, also ohne Wirkung: keine en_US- oder de_DE-UTF-8-Locale gefunden}."
+if [ -n "$locale_utf8" ]; then
+  echo "Sortierung geprüft mit Locale $locale_utf8."
+else
+  echo 'Sortierung nicht wirksam geprüft: keine en_US- oder de_DE-UTF-8-Locale gefunden.'
+fi
