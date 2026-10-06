@@ -259,7 +259,8 @@ done
   echo "## Warnungen"
   echo
   if [ -s "$warnungen" ]; then
-    awk -F'\t' '{ printf "- [%s](%s): %s\n", $1, $1, $2 }' "$warnungen"
+    # Die Ordnerschleifen folgen der Locale; erst die Sortierung macht die Reihenfolge stabil.
+    sort "$warnungen" | awk -F'\t' '{ printf "- [%s](%s): %s\n", $1, $1, $2 }'
   else
     echo "Keine."
   fi

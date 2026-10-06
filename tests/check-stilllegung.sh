@@ -86,6 +86,9 @@ document verein laufend fremd-dient 'Aktiv und verifiziert' "$today"
 dient verein/laufend/fremd-dient/README.md 'privat, extern'
 # Großgeschriebener Titel: Byteweise steht er vor den kleingeschriebenen, in einer UTF-8-Locale oft dahinter.
 document privat z-laufend Zeta 'Aktiv und verifiziert' "$today"
+# Bindestrich-Paar mit Alterswarnung: Byteweise steht nas-backup vorn, in einer UTF-8-Locale nasa.
+document privat z-laufend nas-backup 'Aktiv und verifiziert' 2000-01-01
+document privat z-laufend nasa 'Aktiv und verifiziert' 2000-01-01
 locale_utf8=$(locale -a 2>/dev/null | grep -i -m1 -E '^(en_US|de_DE)\.utf-?8$' || true)
 
 find privat firma verein -type f -exec cksum {} \; | sort >before
@@ -96,7 +99,10 @@ fi
 find privat firma verein -type f -exec cksum {} \; | sort >after
 cmp -s before after || fail 'Prüfung hat Quelldokumente verändert'
 
-[ "$(grep -c '^WARNUNG ' stderr)" -eq 5 ] || fail 'Genau fünf Alterswarnungen erwartet'
+[ "$(grep -c '^WARNUNG ' stderr)" -eq 7 ] || fail 'Genau sieben Alterswarnungen erwartet'
+awk '/^## Warnungen$/ {inside=1; next} /^## / {inside=0} inside && /^- /' README.md >warnungen-index
+contains warnungen-index 'privat/z-laufend/nas-backup/README.md'
+LC_ALL=C sort -c warnungen-index 2>/dev/null || fail 'Warnungen im Index müssen unabhängig von der Locale byteweise sortiert sein'
 contains stderr "privat/z-laufend/aktiv-alt/README.md: Prüfdatum 2000-01-01 ist älter als 12 Monate"
 contains stderr "privat/v-veraltet/aktiv-alt/README.md: Prüfdatum 2000-01-01 ist älter als 12 Monate"
 contains stderr "privat/z-laufend/teilweise-alt/README.md: Prüfdatum $six_months ist älter als 3 Monate"
