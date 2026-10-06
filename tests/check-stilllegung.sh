@@ -57,7 +57,8 @@ prepare() {
 # Konfiguration wie im Makefile eines Dokumentations-Repositorys.
 export ORGANISATIONEN="privat firma verein"
 export BEKANNTE_ORGANISATIONEN="$ORGANISATIONEN extern"
-export INDEX_BESCHREIBUNG="Testdokumentation."
+# Mit Umlauten: Ein korrekt kodierter Wert muss unverändert im Index landen.
+export INDEX_BESCHREIBUNG="Testdokumentation für ASKÖ."
 
 # Setzt dient in der Frontmatter eines vorhandenen Dokuments.
 dient() { sed "s/^pruefdatum:.*/&\ndient: [$2]/" "$1" >modified && mv modified "$1"; }
@@ -85,12 +86,11 @@ document verein laufend fremd-dient 'Aktiv und verifiziert' "$today"
 dient verein/laufend/fremd-dient/README.md 'privat, extern'
 # Großgeschriebener Titel: Byteweise steht er vor den kleingeschriebenen, in einer UTF-8-Locale oft dahinter.
 document privat z-laufend Zeta 'Aktiv und verifiziert' "$today"
-# Makefile mit CRLF wie in einem Windows-Checkout; die Umgebung trägt den Wert, wie ihn ein natives Windows-make verfälscht.
-printf 'export INDEX_BESCHREIBUNG := Testdokumentation für ASKÖ.\r\n' >Makefile
 locale_utf8=$(locale -a 2>/dev/null | grep -i -m1 -E '^(en_US|de_DE)\.utf-?8$' || true)
 
 find privat firma verein -type f -exec cksum {} \; | sort >before
-if ! INDEX_BESCHREIBUNG='Testdokumentation für ASKÃ–.' LC_ALL="${locale_utf8:-C}" bash tooling/check.sh >stdout 2>stderr; then
+# Die Beschreibung so, wie ein natives Windows-make sie über CP1252 verfälscht weiterreicht.
+if ! INDEX_BESCHREIBUNG='Testdokumentation fÃ¼r ASKÃ–.' LC_ALL="${locale_utf8:-C}" bash tooling/check.sh >stdout 2>stderr; then
   cat stderr >&2; fail 'Gültige Dokumente abgelehnt'
 fi
 find privat firma verein -type f -exec cksum {} \; | sort >after
@@ -166,5 +166,7 @@ contains stderr 'privat/stillgelegt/abschnitt/README.md: Abschnitt'
 contains stderr 'privat/stillgelegt/frontmatter/README.md: Frontmatter fehlt'
 contains stderr 'privat/stillgelegt/dient-unbekannt/README.md: dient enthält unbekannte Organisation „unbekannt“'
 absent stderr 'WARNUNG '
+contains README.md 'Testdokumentation für ASKÖ.'
 
 echo 'Stilllegung: Alterswarnungen, Index und unveränderte Pflichtprüfungen erfolgreich geprüft.'
+echo "Sortierung geprüft mit Locale ${locale_utf8:-C, also ohne Wirkung: keine en_US- oder de_DE-UTF-8-Locale gefunden}."

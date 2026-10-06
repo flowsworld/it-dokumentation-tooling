@@ -16,18 +16,19 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+: "${ORGANISATIONEN:?ORGANISATIONEN fehlt; im Makefile des Repositorys setzen}"
+: "${INDEX_BESCHREIBUNG:?INDEX_BESCHREIBUNG fehlt; im Makefile des Repositorys setzen}"
+
 # Native Windows-Builds von make (etwa ezwinports) reichen Werte über die ANSI-Codepage weiter
-# und machen aus „Ö“ „Ã–“. Deshalb gilt die Beschreibung aus dem Makefile, sofern es sie setzt.
-if [ -f Makefile ]; then
-  beschreibung=$(sed -n 's/^export INDEX_BESCHREIBUNG := //p' Makefile | tr -d '\r')
-  [ -z "$beschreibung" ] || INDEX_BESCHREIBUNG="$beschreibung"
+# und machen aus „Ö“ „Ã–“. Ein so verfälschter Wert ergibt, zurück nach CP1252 kodiert, wieder
+# gültiges UTF-8; ein korrekter Wert mit Umlauten nicht und bleibt deshalb unverändert.
+if repariert=$(printf '%s' "$INDEX_BESCHREIBUNG" | iconv -f UTF-8 -t CP1252 2>/dev/null) &&
+   printf '%s' "$repariert" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+  INDEX_BESCHREIBUNG="$repariert"
 fi
 
 # Byteweise sortieren, damit der Index auf jedem Rechner gleich aussieht, unabhängig von der Locale.
 sort() { LC_ALL=C command sort "$@"; }
-
-: "${ORGANISATIONEN:?ORGANISATIONEN fehlt; im Makefile des Repositorys setzen}"
-: "${INDEX_BESCHREIBUNG:?INDEX_BESCHREIBUNG fehlt; im Makefile des Repositorys setzen}"
 BEKANNTE_ORGANISATIONEN="${BEKANNTE_ORGANISATIONEN:-$ORGANISATIONEN}"
 TOOLING_URL="https://github.com/flowsworld/it-dokumentation-tooling/blob/main"
 STATUS_WERTE="Aktiv und verifiziert|Teilweise aktiv|Blockiert|Deaktiviert|Veraltet"
