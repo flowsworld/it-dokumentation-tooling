@@ -83,9 +83,16 @@ document firma leer '' Deaktiviert 2000-01-01
 document verein laufend '' Blockiert "$six_months"
 document verein laufend fremd-dient 'Aktiv und verifiziert' "$today"
 dient verein/laufend/fremd-dient/README.md 'privat, extern'
+# Großgeschriebener Titel: Byteweise steht er vor den kleingeschriebenen, in einer UTF-8-Locale oft dahinter.
+document privat z-laufend Zeta 'Aktiv und verifiziert' "$today"
+# Makefile mit CRLF wie in einem Windows-Checkout; die Umgebung trägt den Wert, wie ihn ein natives Windows-make verfälscht.
+printf 'export INDEX_BESCHREIBUNG := Testdokumentation für ASKÖ.\r\n' >Makefile
+locale_utf8=$(locale -a 2>/dev/null | grep -i -m1 -E '^(en_US|de_DE)\.utf-?8$' || true)
 
 find privat firma verein -type f -exec cksum {} \; | sort >before
-if ! bash tooling/check.sh >stdout 2>stderr; then cat stderr >&2; fail 'Gültige Dokumente abgelehnt'; fi
+if ! INDEX_BESCHREIBUNG='Testdokumentation für ASKÃ–.' LC_ALL="${locale_utf8:-C}" bash tooling/check.sh >stdout 2>stderr; then
+  cat stderr >&2; fail 'Gültige Dokumente abgelehnt'
+fi
 find privat firma verein -type f -exec cksum {} \; | sort >after
 cmp -s before after || fail 'Prüfung hat Quelldokumente verändert'
 
@@ -107,6 +114,8 @@ contains privat-index '| Eintrag | Damaliger Status |'
 contains privat-index '| [aktiv](privat/a-stillgelegt/aktiv/README.md) | Aktiv und verifiziert | 2000-01-01 |'
 contains privat-index '| [blockiert](privat/a-stillgelegt/blockiert/README.md) | Blockiert | 2000-01-01 |'
 contains privat-index '| Eintrag | Status |'
+awk '/\[Zeta\]/ {upper=NR} /\[aktiv-alt\]\(privat\/z-laufend/ {lower=NR} END {exit !(upper && lower && upper < lower)}' privat-index ||
+  fail 'Einträge müssen unabhängig von der Locale byteweise sortiert sein'
 awk '
   /^### \[z-laufend\]/ {active=NR}
   /^### \[v-veraltet\]/ {outdated=NR}
@@ -119,7 +128,8 @@ contains firma-index '#### [leer](firma/leer/README.md)'
 absent firma-index '| Eintrag |'
 absent verein-index 'Stillgelegte Systeme'
 contains verein-index '| privat, extern |'
-contains README.md 'Testdokumentation.'
+contains README.md 'Testdokumentation für ASKÖ.'
+absent README.md 'Ã'
 
 prepare invalid
 document privat stillgelegt '' Deaktiviert 2000-01-01
