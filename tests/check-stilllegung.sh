@@ -57,7 +57,8 @@ prepare() {
 # Konfiguration wie im Makefile eines Dokumentations-Repositorys.
 export ORGANISATIONEN="privat firma verein"
 export BEKANNTE_ORGANISATIONEN="$ORGANISATIONEN extern"
-export INDEX_BESCHREIBUNG="Testdokumentation."
+# Mit Umlauten: Ein korrekt kodierter Wert muss unverändert im Index landen.
+export INDEX_BESCHREIBUNG="Testdokumentation für ASKÖ."
 
 # Setzt dient in der Frontmatter eines vorhandenen Dokuments.
 dient() { sed "s/^pruefdatum:.*/&\ndient: [$2]/" "$1" >modified && mv modified "$1"; }
@@ -83,13 +84,25 @@ document firma leer '' Deaktiviert 2000-01-01
 document verein laufend '' Blockiert "$six_months"
 document verein laufend fremd-dient 'Aktiv und verifiziert' "$today"
 dient verein/laufend/fremd-dient/README.md 'privat, extern'
+# Großgeschriebener Titel: Byteweise steht er vor den kleingeschriebenen, in einer UTF-8-Locale oft dahinter.
+document privat z-laufend Zeta 'Aktiv und verifiziert' "$today"
+# Bindestrich-Paar mit Alterswarnung: Byteweise steht nas-backup vorn, in einer UTF-8-Locale nasa.
+document privat z-laufend nas-backup 'Aktiv und verifiziert' 2000-01-01
+document privat z-laufend nasa 'Aktiv und verifiziert' 2000-01-01
+locale_utf8=$(locale -a 2>/dev/null | grep -i -m1 -E '^(en_US|de_DE)\.utf-?8$' || true)
 
 find privat firma verein -type f -exec cksum {} \; | sort >before
-if ! bash tooling/check.sh >stdout 2>stderr; then cat stderr >&2; fail 'Gültige Dokumente abgelehnt'; fi
+# Die Beschreibung so, wie ein natives Windows-make sie über CP1252 verfälscht weiterreicht.
+if ! INDEX_BESCHREIBUNG='Testdokumentation fÃ¼r ASKÃ–.' LC_ALL="${locale_utf8:-C}" bash tooling/check.sh >stdout 2>stderr; then
+  cat stderr >&2; fail 'Gültige Dokumente abgelehnt'
+fi
 find privat firma verein -type f -exec cksum {} \; | sort >after
 cmp -s before after || fail 'Prüfung hat Quelldokumente verändert'
 
-[ "$(grep -c '^WARNUNG ' stderr)" -eq 5 ] || fail 'Genau fünf Alterswarnungen erwartet'
+[ "$(grep -c '^WARNUNG ' stderr)" -eq 7 ] || fail 'Genau sieben Alterswarnungen erwartet'
+awk '/^## Warnungen$/ {inside=1; next} /^## / {inside=0} inside && /^- /' README.md >warnungen-index
+contains warnungen-index 'privat/z-laufend/nas-backup/README.md'
+LC_ALL=C sort -c warnungen-index 2>/dev/null || fail 'Warnungen im Index müssen unabhängig von der Locale byteweise sortiert sein'
 contains stderr "privat/z-laufend/aktiv-alt/README.md: Prüfdatum 2000-01-01 ist älter als 12 Monate"
 contains stderr "privat/v-veraltet/aktiv-alt/README.md: Prüfdatum 2000-01-01 ist älter als 12 Monate"
 contains stderr "privat/z-laufend/teilweise-alt/README.md: Prüfdatum $six_months ist älter als 3 Monate"
@@ -107,6 +120,8 @@ contains privat-index '| Eintrag | Damaliger Status |'
 contains privat-index '| [aktiv](privat/a-stillgelegt/aktiv/README.md) | Aktiv und verifiziert | 2000-01-01 |'
 contains privat-index '| [blockiert](privat/a-stillgelegt/blockiert/README.md) | Blockiert | 2000-01-01 |'
 contains privat-index '| Eintrag | Status |'
+awk '/\[Zeta\]/ {upper=NR} /\[aktiv-alt\]\(privat\/z-laufend/ {lower=NR} END {exit !(upper && lower && upper < lower)}' privat-index ||
+  fail 'Einträge müssen unabhängig von der Locale byteweise sortiert sein'
 awk '
   /^### \[z-laufend\]/ {active=NR}
   /^### \[v-veraltet\]/ {outdated=NR}
@@ -119,7 +134,8 @@ contains firma-index '#### [leer](firma/leer/README.md)'
 absent firma-index '| Eintrag |'
 absent verein-index 'Stillgelegte Systeme'
 contains verein-index '| privat, extern |'
-contains README.md 'Testdokumentation.'
+contains README.md 'Testdokumentation für ASKÖ.'
+absent README.md 'Ã'
 
 prepare invalid
 document privat stillgelegt '' Deaktiviert 2000-01-01
@@ -156,5 +172,11 @@ contains stderr 'privat/stillgelegt/abschnitt/README.md: Abschnitt'
 contains stderr 'privat/stillgelegt/frontmatter/README.md: Frontmatter fehlt'
 contains stderr 'privat/stillgelegt/dient-unbekannt/README.md: dient enthält unbekannte Organisation „unbekannt“'
 absent stderr 'WARNUNG '
+contains README.md 'Testdokumentation für ASKÖ.'
 
 echo 'Stilllegung: Alterswarnungen, Index und unveränderte Pflichtprüfungen erfolgreich geprüft.'
+if [ -n "$locale_utf8" ]; then
+  echo "Sortierung geprüft mit Locale $locale_utf8."
+else
+  echo 'Sortierung nicht wirksam geprüft: keine en_US- oder de_DE-UTF-8-Locale gefunden.'
+fi

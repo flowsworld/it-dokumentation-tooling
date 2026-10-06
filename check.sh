@@ -8,7 +8,8 @@
 #   BEKANNTE_ORGANISATIONEN  zulässige Werte für dient (Standard: ORGANISATIONEN)
 #   INDEX_BESCHREIBUNG       erster Satz des Index (Pflicht)
 # Exit 1 bei mindestens einem Fehler. Warnungen brechen nicht ab, sie landen im Index.
-# Läuft mit Bash 3.2 (macOS) und GNU Bash; braucht yq (https://github.com/mikefarah/yq).
+# Läuft mit Bash 3.2 (macOS) und GNU Bash; braucht yq (https://github.com/mikefarah/yq),
+# nutzt iconv, falls vorhanden.
 
 # Die Meldungen verwenden absichtlich deutsche Anführungszeichen.
 # shellcheck disable=SC1111
@@ -18,6 +19,19 @@ cd "$(dirname "$0")/.."
 
 : "${ORGANISATIONEN:?ORGANISATIONEN fehlt; im Makefile des Repositorys setzen}"
 : "${INDEX_BESCHREIBUNG:?INDEX_BESCHREIBUNG fehlt; im Makefile des Repositorys setzen}"
+
+# Native Windows-Builds von make (etwa ezwinports) reichen Werte über die ANSI-Codepage weiter
+# und machen aus „Ö“ „Ã–“. Ein so verfälschter Wert ergibt, zurück nach CP1252 kodiert, wieder
+# gültiges UTF-8; ein korrekter Wert mit Umlauten in aller Regel nicht und bleibt unverändert.
+# Deutsche Umlaute und ß werden repariert, verfälschte Á, Í, Ï, Ð und Ý nicht.
+if repariert=$(printf '%s' "$INDEX_BESCHREIBUNG" | iconv -f UTF-8 -t CP1252 2>/dev/null) &&
+   printf '%s' "$repariert" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+  INDEX_BESCHREIBUNG="$repariert"
+fi
+
+# Byteweise sortieren, damit der Index auf jedem Rechner gleich aussieht, unabhängig von der Locale.
+sort() { LC_ALL=C command sort "$@"; }
+
 BEKANNTE_ORGANISATIONEN="${BEKANNTE_ORGANISATIONEN:-$ORGANISATIONEN}"
 TOOLING_URL="https://github.com/flowsworld/it-dokumentation-tooling/blob/main"
 STATUS_WERTE="Aktiv und verifiziert|Teilweise aktiv|Blockiert|Deaktiviert|Veraltet"
@@ -248,7 +262,8 @@ done
   echo "## Warnungen"
   echo
   if [ -s "$warnungen" ]; then
-    awk -F'\t' '{ printf "- [%s](%s): %s\n", $1, $1, $2 }' "$warnungen"
+    # Die Ordnerschleifen folgen der Locale; erst die Sortierung macht die Reihenfolge stabil.
+    sort "$warnungen" | awk -F'\t' '{ printf "- [%s](%s): %s\n", $1, $1, $2 }'
   else
     echo "Keine."
   fi
