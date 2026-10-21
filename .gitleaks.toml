@@ -6,9 +6,11 @@ useDefault = true
 
 # Cloudflare-Konto-IDs und Zonen-IDs sind 32 Hex-Zeichen und keine Geheimnisse.
 # Sie treffen nur generic-api-key, wenn ein Wort wie key/token auf der Zeile steht.
-# Cloudflare-API-Token (40 Zeichen) und Global API Keys (37 Hex) bleiben erkannt.
+# Freigegeben nur auf Zeilen, die sie als Konto-, Account- oder Zonen-ID benennen.
+# Andere 32-Hex-Werte (etwa openssl rand -hex 16 als Passwort) bleiben erkannt,
+# ebenso Cloudflare-API-Token (40 Zeichen) und Global API Keys (37 Hex).
 [[allowlists]]
 description = "Cloudflare Account-ID oder Zone-ID (32 Hex, kein Secret)"
 targetRules = ["generic-api-key"]
-regexTarget = "secret"
-regexes = ['''^[a-f0-9]{32}$''']
+regexTarget = "line"
+regexes = ['''(?i)(account|konto|zonen?)[ _-]?id\W{0,5}[a-f0-9]{32}\b''']
