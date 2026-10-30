@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # gitleaks braucht die vollständige Historie.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # yq (mikefarah) und shellcheck sind auf ubuntu-latest vorinstalliert.
