@@ -1,0 +1,16 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: daily
+      time: "05:00"
+      timezone: Europe/Vienna
+    cooldown:
+      # Actions only support default-days.
+      default-days: 7
+    groups:
+      routine-updates:
+        patterns: ["*"]
+        update-types: [minor, patch]

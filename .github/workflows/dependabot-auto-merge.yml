@@ -1,0 +1,83 @@
+name: Dependabot-Updates automatisch mergen
+
+# Merged einen Dependabot-Pull-Request, sobald die Pull-Request-Prüfung auf genau seinem Head-Commit bestanden hat:
+# Security-Updates und Versionsupdates bis Minor, gebündelte Routine-Updates und Submodul-Updates. Ein Major-Update
+# bleibt zur Prüfung durch eine Person oder einen Agenten offen. Hier laufen nur GitHubs eigene Werkzeuge; der Merge
+# nutzt das Workflow-Token.
+on:
+  workflow_run:
+    workflows:
+      - check
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  # Nötig, um Pull Requests zu mergen, die Workflow-Dateien ändern.
+  actions: write
+
+jobs:
+  merge:
+    name: Dependabot-Update mergen
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: dependabot-auto-merge-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: true
+    steps:
+      - name: Mergen, falls zulässig
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          # Workflows, die nach einem Merge auf dem Default-Branch starten, durch Leerzeichen getrennt. Ein Merge mit
+          # dem Workflow-Token startet von sich aus keine Push-Workflows.
+          POST_MERGE_WORKFLOWS: "check.yml"
+        run: |
+          set -euo pipefail
+          default=$(gh repo view "$GITHUB_REPOSITORY" --json defaultBranchRef --jq .defaultBranchRef.name)
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$HEAD_BRANCH" --base "$default" --state open \
+            --json number,author,isDraft,headRefOid,title,commits --jq '.[0] // empty')
+          if [ -z "$pr" ]; then echo "Kein offener Pull Request für $HEAD_BRANCH."; exit 0; fi
+          number=$(jq -r .number <<<"$pr")
+
+          # Nur Dependabots eigene, unveränderte Commits auf genau dem geprüften Head.
+          if ! jq -e --arg sha "$TESTED_SHA" '
+              .author.login == "app/dependabot" and .isDraft == false and .headRefOid == $sha and
+              ([.commits[].authors[].login] | all(. == "dependabot[bot]"))' <<<"$pr" >/dev/null; then
+            echo "#$number: kein unveränderter Dependabot-Pull-Request auf dem geprüften Commit; bleibt offen."
+            exit 0
+          fi
+
+          # Gebündelte Routine-Updates enthalten nur Minor- und Patch-Updates (siehe .github/dependabot.yml);
+          # Submodul-Updates tragen Commit-Hashes. Ein einzelnes Update ist ein Major-Update, wenn sich die erste
+          # Versionsnummer ändert, unter 1.0.0 die zweite. Ein unbekannter Titel bleibt offen.
+          title=$(jq -r .title <<<"$pr")
+          shopt -s nocasematch
+          if [[ $title =~ bump\ the\ routine-updates\ group ]] || [[ $HEAD_BRANCH == dependabot/submodules/* ]]; then
+            major=false
+          elif [[ $title =~ from\ v?([0-9]+)(\.([0-9]+))?(\.[0-9]+)*([-+][^\ ]*)?\ to\ v?([0-9]+)(\.([0-9]+))?(\.[0-9]+)*([-+][^\ ]*)?(\ |$) ]]; then
+            from_major=${BASH_REMATCH[1]} from_minor=${BASH_REMATCH[3]:-0}
+            to_major=${BASH_REMATCH[6]} to_minor=${BASH_REMATCH[8]:-0}
+            major=false
+            if [ "$from_major" != "$to_major" ] || { [ "$from_major" = 0 ] && [ "$from_minor" != "$to_minor" ]; }; then
+              major=true
+            fi
+          else
+            major=true
+          fi
+          shopt -u nocasematch
+          if [ "$major" = true ]; then
+            echo "#$number: Major- oder unbekanntes Update ($title); bleibt zur Prüfung offen."
+            exit 0
+          fi
+
+          gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --squash --delete-branch --match-head-commit "$TESTED_SHA"
+          for workflow in $POST_MERGE_WORKFLOWS; do
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref "$default"
+          done
